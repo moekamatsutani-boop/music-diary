@@ -1,28 +1,40 @@
 import React, { useState } from 'react';
-import { Memory } from '../types';
-import { Play, Music, Calendar, Check, X, Sparkles, Share2, MessageCircleHeart, Trash2 } from 'lucide-react';
+import { Memory, Language } from '../types';
+import { Play, Music, Calendar, Check, X, Share2, MessageCircleHeart, Trash2 } from 'lucide-react';
 
 interface MemoryCardProps {
   memory: Memory;
+  language: Language;
   onFeedback: (id: string, isCorrect: boolean) => void;
   onDelete: (id: string) => void;
 }
 
-const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onFeedback, onDelete }) => {
+const MemoryCard: React.FC<MemoryCardProps> = ({ memory, language, onFeedback, onDelete }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const formattedDate = new Date(memory.timestamp).toLocaleDateString('ja-JP', {
+  const formattedDate = new Date(memory.timestamp).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US', {
     year: 'numeric',
-    month: 'short',
+    month: language === 'ja' ? 'long' : 'short',
     day: 'numeric',
   });
 
   const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${memory.song.artist} ${memory.song.title}`)}`;
-
-  // Calculate mood percentage
   const moodPercent = memory.moodScore + 50; 
   
+  const translations = {
+    share: { ja: "シェア", en: "Share" },
+    copied: { ja: "コピー完了", en: "Copied" },
+    messageTitle: { ja: "Message for You", en: "Message for You" }, // Keeping English title as it's stylistic
+    feedbackQuestion: { ja: "気持ちに合っていましたか？", en: "Did this match your mood?" },
+    confirmDelete: { ja: "この記録を削除してもよろしいですか？", en: "Are you sure you want to delete this memory?" },
+    deleteTitle: { ja: "削除する", en: "Delete" },
+    listenOnYT: { ja: "YouTubeで聴く", en: "Listen on YouTube" },
+    artAlt: { ja: "思い出のアート", en: "Mood art" }
+  };
+
+  const t = (key: keyof typeof translations) => translations[key][language];
+
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
     const text = `MusicDiary: ${formattedDate}\n🎵 ${memory.song.title} / ${memory.song.artist}\n💌 ${memory.analysis.inferredEmotion}\n\n"${memory.analysis.analysisText.slice(0, 60)}..."`;
@@ -34,7 +46,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onFeedback, onDelete })
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('この記録を削除してもよろしいですか？')) {
+    if (window.confirm(t('confirmDelete'))) {
       onDelete(memory.id);
     }
   };
@@ -45,11 +57,11 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onFeedback, onDelete })
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Delete Button (Visible on hover) */}
+      {/* Delete Button */}
       <button 
         onClick={handleDelete}
         className="absolute top-3 right-3 z-20 p-2 bg-white/80 backdrop-blur rounded-full text-stone-400 hover:text-red-500 hover:bg-white transition-all opacity-0 group-hover:opacity-100 shadow-sm"
-        title="削除する"
+        title={t('deleteTitle')}
       >
         <Trash2 size={14} />
       </button>
@@ -59,7 +71,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onFeedback, onDelete })
         {memory.imageUrl ? (
           <img 
             src={memory.imageUrl} 
-            alt={`Mood art for ${memory.song.title}`} 
+            alt={`${t('artAlt')} for ${memory.song.title}`} 
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           />
         ) : (
@@ -74,7 +86,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onFeedback, onDelete })
           target="_blank"
           rel="noopener noreferrer"
           className="absolute bottom-4 right-4 z-10 w-12 h-12 rounded-full bg-white/95 backdrop-blur shadow-md flex items-center justify-center text-stone-800 hover:bg-stone-800 hover:text-white transition-all opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 duration-300"
-          aria-label="YouTubeで聴く"
+          aria-label={t('listenOnYT')}
         >
           <Play size={18} fill="currentColor" className="ml-0.5" />
         </a>
@@ -111,10 +123,10 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onFeedback, onDelete })
           <button 
              onClick={handleShare}
              className="flex items-center gap-1 hover:text-orange-500 transition-colors"
-             title="テキストをコピー"
+             title="Copy Text"
           >
              {copied ? <Check size={12} className="text-green-500"/> : <Share2 size={12} />}
-             <span>{copied ? 'Copied' : 'Share'}</span>
+             <span>{copied ? t('copied') : t('share')}</span>
           </button>
         </div>
 
@@ -147,7 +159,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onFeedback, onDelete })
         <div className="pt-4 border-t border-stone-100">
           <div className="flex items-center gap-1.5 mb-2">
              <MessageCircleHeart size={12} className="text-orange-400" />
-             <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Message for You</span>
+             <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">{t('messageTitle')}</span>
           </div>
           
           <p className="text-xs text-stone-600 leading-relaxed mb-4">
@@ -156,7 +168,7 @@ const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onFeedback, onDelete })
 
           {/* Feedback UI */}
           <div className="flex items-center justify-between mt-auto bg-stone-50 rounded-lg p-2">
-              <span className="text-[10px] text-stone-400 font-medium pl-1">気持ちに合っていましたか？</span>
+              <span className="text-[10px] text-stone-400 font-medium pl-1">{t('feedbackQuestion')}</span>
               <div className="flex gap-1">
                   <button 
                     onClick={() => onFeedback(memory.id, true)}

@@ -1,3 +1,5 @@
+export type Language = 'ja' | 'en';
+
 export interface UserSongInput {
   artist: string;
   title: string;
@@ -20,4 +22,5 @@ export interface Memory {
   analysis: AnalysisResult; // AIによる分析結果
   imageUrl?: string; // Base64 or URL
   userFeedback?: 'correct' | 'incorrect' | null; // ユーザーの自己判断 (〇/×)
+  language?: Language; // 記録時の言語
 }

@@ -1,19 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { Memory } from './types';
+import { Memory, Language } from './types';
 import { analyzeMemory, generateMemoryImage } from './services/geminiService';
 import MemoryCard from './components/MemoryCard';
-import { Sparkles, LayoutGrid, Calendar as CalendarIcon, PenLine, Loader2, Music, ChevronLeft, ChevronRight, BookHeart, History, Activity, Tag, Sun, CloudRain, RotateCcw } from 'lucide-react';
+import { Sparkles, LayoutGrid, Calendar as CalendarIcon, PenLine, Loader2, Music, ChevronLeft, ChevronRight, BookHeart, History, Activity, Tag, Sun, CloudRain, RotateCcw, Globe } from 'lucide-react';
 
 const STORAGE_KEY = 'music_diary_data_v1';
 
 type ViewMode = 'list' | 'calendar';
 
-// More universal emotion tags
-const EMOTION_TAGS = [
-  "リラックス", "集中", "憂鬱", "ワクワク", 
-  "懐かしい", "決意", "疲れた", "感謝", 
-  "怒り", "穏やか", "孤独", "達成感"
+interface TagDefinition {
+  id: string;
+  label: { ja: string; en: string };
+}
+
+// Universal emotion tags with IDs and translations
+const EMOTION_TAGS: TagDefinition[] = [
+  { id: 'relax', label: { ja: "リラックス", en: "Relax" } },
+  { id: 'focus', label: { ja: "集中", en: "Focus" } },
+  { id: 'blue', label: { ja: "憂鬱", en: "Blue" } },
+  { id: 'excited', label: { ja: "ワクワク", en: "Excited" } },
+  { id: 'nostalgic', label: { ja: "懐かしい", en: "Nostalgic" } },
+  { id: 'determined', label: { ja: "決意", en: "Determined" } },
+  { id: 'tired', label: { ja: "疲れた", en: "Tired" } },
+  { id: 'grateful', label: { ja: "感謝", en: "Grateful" } },
+  { id: 'angry', label: { ja: "怒り", en: "Angry" } },
+  { id: 'calm', label: { ja: "穏やか", en: "Calm" } },
+  { id: 'lonely', label: { ja: "孤独", en: "Lonely" } },
+  { id: 'accomplished', label: { ja: "達成感", en: "Accomplished" } }
 ];
+
+const UI_TEXT = {
+  subtitle: { ja: "音楽と感情のライフログ", en: "Life log of music & emotions" },
+  titleRecord: { ja: "思い出の曲を記録する", en: "Record a Memory Song" },
+  descRecord: { ja: "心が動いた瞬間と、その時の音楽を残しておきましょう。", en: "Capture the moment your heart moved, along with the music." },
+  labelDate: { ja: "日付", en: "Date" },
+  labelMusic: { ja: "楽曲情報", en: "Music Info" },
+  labelMood: { ja: "感情バロメーター", en: "Emotion Barometer" },
+  labelTags: { ja: "キーワード", en: "Keywords" },
+  labelDiary: { ja: "日記・メモ", en: "Diary Note" },
+  placeholderSong: { ja: "曲名", en: "Song Title" },
+  placeholderArtist: { ja: "アーティスト名", en: "Artist Name" },
+  placeholderDiary: { ja: "今の気持ちや出来事を書き留めましょう（任意）", en: "Write down your feelings or what happened (optional)..." },
+  btnReset: { ja: "入力をリセットしますか？", en: "Reset input?" },
+  btnSave: { ja: "思い出を保存", en: "Save Memory" },
+  analyzing: { ja: "分析中...", en: "Analyzing..." },
+  stepAnalyzing: { ja: "音楽と感情を分析しています...", en: "Analyzing music and emotions..." },
+  stepImage: { ja: "イメージを生成しています...", en: "Generating visual..." },
+  timeline: { ja: "マイ・タイムライン", en: "My Timeline" },
+  emptyTitle: { ja: "記録はまだありません", en: "No memories yet" },
+  emptyDesc: { ja: "最初の1曲を記録してみましょう", en: "Let's record your first song." },
+  errorMsg: { ja: "エラーが発生しました。しばらくしてから再度お試しください。", en: "An error occurred. Please try again later." },
+  quiet: { ja: "静 / 冷", en: "Quiet / Cool" },
+  active: { ja: "動 / 温", en: "Active / Warm" },
+};
 
 const getTodayString = () => {
   const d = new Date();
@@ -25,6 +64,7 @@ const getTodayString = () => {
 
 const App: React.FC = () => {
   const [memories, setMemories] = useState<Memory[]>([]);
+  const [language, setLanguage] = useState<Language>('ja');
   
   // Inputs
   const [recordDate, setRecordDate] = useState(getTodayString());
@@ -38,6 +78,8 @@ const App: React.FC = () => {
   const [loadingStep, setLoadingStep] = useState<string>('');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  const t = (key: keyof typeof UI_TEXT) => UI_TEXT[key][language];
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -61,7 +103,7 @@ const App: React.FC = () => {
   };
 
   const handleReset = () => {
-    if (window.confirm("入力内容をリセットしますか？")) {
+    if (window.confirm(t('btnReset'))) {
         setDiaryText('');
         setSongTitle('');
         setArtistName('');
@@ -71,12 +113,12 @@ const App: React.FC = () => {
     }
   };
 
-  const toggleTag = (tag: string) => {
-    if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter(t => t !== tag));
+  const toggleTag = (tagLabel: string) => {
+    if (selectedTags.includes(tagLabel)) {
+      setSelectedTags(selectedTags.filter(t => t !== tagLabel));
     } else {
       if (selectedTags.length < 3) {
-        setSelectedTags([...selectedTags, tag]);
+        setSelectedTags([...selectedTags, tagLabel]);
       }
     }
   };
@@ -85,11 +127,9 @@ const App: React.FC = () => {
     if (!songTitle.trim() || !artistName.trim()) return;
 
     setIsAnalyzing(true);
-    setLoadingStep('音楽と感情を分析しています...');
+    setLoadingStep(t('stepAnalyzing'));
 
     try {
-      // Create date object from input string (YYYY-MM-DD)
-      // Treat as local date (00:00:00)
       const [year, month, day] = recordDate.split('-').map(Number);
       const targetDate = new Date(year, month - 1, day);
 
@@ -98,10 +138,11 @@ const App: React.FC = () => {
         { title: songTitle, artist: artistName },
         moodScore,
         selectedTags,
-        targetDate
+        targetDate,
+        language
       );
       
-      setLoadingStep('イメージを生成しています...');
+      setLoadingStep(t('stepImage'));
       const imageUrl = await generateMemoryImage(analysis.imagePrompt);
 
       const newMemory: Memory = {
@@ -116,17 +157,14 @@ const App: React.FC = () => {
         },
         analysis: analysis,
         imageUrl: imageUrl,
-        userFeedback: null
+        userFeedback: null,
+        language: language
       };
 
-      // Sort memories by date (descending)
       const updatedMemories = [newMemory, ...memories].sort((a, b) => b.timestamp - a.timestamp);
 
       saveMemories(updatedMemories);
       
-      // Reset inputs (keep date as is or reset? Resetting to today might be better UX usually, or keep if batch entering)
-      // Let's reset song/diary but keep date in case user is entering multiple for that day. 
-      // Actually, resetting date to today is safer to avoid accidental past entries.
       setRecordDate(getTodayString());
       setDiaryText('');
       setSongTitle('');
@@ -135,7 +173,7 @@ const App: React.FC = () => {
       setSelectedTags([]);
     } catch (error) {
       console.error(error);
-      alert("エラーが発生しました。しばらくしてから再度お試しください。");
+      alert(t('errorMsg'));
     } finally {
       setIsAnalyzing(false);
       setLoadingStep('');
@@ -227,7 +265,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen text-stone-700 selection:bg-orange-100 selection:text-orange-900 pb-20">
+    <div className="min-h-screen text-stone-700 selection:bg-orange-100 selection:text-orange-900 pb-20 font-sans">
       
       {/* Header */}
       <header className="sticky top-0 z-50 glass-panel shadow-sm shadow-stone-100">
@@ -242,7 +280,22 @@ const App: React.FC = () => {
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden md:block text-xs font-medium text-stone-500">
-              音楽と感情のライフログ
+              {t('subtitle')}
+            </div>
+            {/* Language Switch */}
+            <div className="flex items-center bg-stone-100 rounded-full p-1 border border-stone-200">
+                <button 
+                    onClick={() => setLanguage('ja')}
+                    className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${language === 'ja' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-400 hover:text-stone-600'}`}
+                >
+                    JP
+                </button>
+                <button 
+                    onClick={() => setLanguage('en')}
+                    className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${language === 'en' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-400 hover:text-stone-600'}`}
+                >
+                    EN
+                </button>
             </div>
           </div>
         </div>
@@ -254,10 +307,10 @@ const App: React.FC = () => {
         <section className="mb-16">
           <div className="text-center mb-10">
             <h2 className="text-2xl font-medium text-stone-800 mb-3">
-              思い出の曲を記録する
+              {t('titleRecord')}
             </h2>
             <p className="text-stone-500 text-sm">
-              心が動いた瞬間と、その時の音楽を残しておきましょう。
+              {t('descRecord')}
             </p>
           </div>
 
@@ -270,7 +323,7 @@ const App: React.FC = () => {
                 {/* Date Input */}
                 <div className="md:col-span-4 space-y-4">
                     <label className="text-xs font-bold text-stone-400 uppercase tracking-wider flex items-center gap-2 mb-1">
-                        <CalendarIcon size={14} className="text-orange-400" /> Date
+                        <CalendarIcon size={14} className="text-orange-400" /> {t('labelDate')}
                     </label>
                     <div className="group">
                       <input 
@@ -286,13 +339,13 @@ const App: React.FC = () => {
                 {/* Song Input */}
                 <div className="md:col-span-8 space-y-4">
                   <label className="text-xs font-bold text-stone-400 uppercase tracking-wider flex items-center gap-2 mb-1">
-                      <Music size={14} className="text-orange-400" /> Music Info
+                      <Music size={14} className="text-orange-400" /> {t('labelMusic')}
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div className="group">
                           <input 
                             type="text" 
-                            placeholder="曲名"
+                            placeholder={t('placeholderSong')}
                             value={songTitle}
                             onChange={(e) => setSongTitle(e.target.value)}
                             className="w-full bg-stone-50 border border-stone-200 text-stone-800 placeholder-stone-400 px-5 py-3.5 rounded-xl outline-none focus:bg-white focus:border-orange-300 focus:ring-4 focus:ring-orange-50 transition-all text-sm group-hover:bg-stone-50/80"
@@ -301,7 +354,7 @@ const App: React.FC = () => {
                       <div className="group">
                           <input 
                             type="text" 
-                            placeholder="アーティスト名"
+                            placeholder={t('placeholderArtist')}
                             value={artistName}
                             onChange={(e) => setArtistName(e.target.value)}
                             className="w-full bg-stone-50 border border-stone-200 text-stone-800 placeholder-stone-400 px-5 py-3.5 rounded-xl outline-none focus:bg-white focus:border-orange-300 focus:ring-4 focus:ring-orange-50 transition-all text-sm group-hover:bg-stone-50/80"
@@ -314,7 +367,7 @@ const App: React.FC = () => {
               {/* Mood Slider */}
               <div className="space-y-4">
                 <label className="text-xs font-bold text-stone-400 uppercase tracking-wider flex items-center gap-2 mb-1">
-                    <Activity size={14} className="text-orange-400" /> Emotion Barometer
+                    <Activity size={14} className="text-orange-400" /> {t('labelMood')}
                 </label>
                 <div className="bg-stone-50/50 rounded-2xl p-6 border border-stone-100">
                   <div className="relative h-12 flex items-center">
@@ -331,8 +384,8 @@ const App: React.FC = () => {
                     />
                   </div>
                   <div className="flex justify-between text-xs font-medium text-stone-400 px-8">
-                    <span>Quiet / Cool</span>
-                    <span>Active / Warm</span>
+                    <span>{t('quiet')}</span>
+                    <span>{t('active')}</span>
                   </div>
                 </div>
               </div>
@@ -340,34 +393,37 @@ const App: React.FC = () => {
               {/* Emotion Tags */}
               <div className="space-y-4">
                 <label className="text-xs font-bold text-stone-400 uppercase tracking-wider flex items-center gap-2 mb-1">
-                    <Tag size={14} className="text-orange-400" /> Keywords <span className="text-[10px] text-stone-300 font-normal ml-auto">(max 3)</span>
+                    <Tag size={14} className="text-orange-400" /> {t('labelTags')} <span className="text-[10px] text-stone-300 font-normal ml-auto">(max 3)</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {EMOTION_TAGS.map(tag => (
-                    <button
-                      key={tag}
-                      onClick={() => toggleTag(tag)}
-                      className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 border ${
-                        selectedTags.includes(tag)
-                          ? 'bg-stone-700 text-white border-stone-700 shadow-md shadow-stone-200 transform scale-105'
-                          : 'bg-white text-stone-600 border-stone-200 hover:border-orange-200 hover:bg-orange-50'
-                      }`}
-                    >
-                      {tag}
-                    </button>
-                  ))}
+                  {EMOTION_TAGS.map(tagDef => {
+                    const tagLabel = tagDef.label[language];
+                    return (
+                        <button
+                        key={tagDef.id}
+                        onClick={() => toggleTag(tagLabel)}
+                        className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 border ${
+                            selectedTags.includes(tagLabel)
+                            ? 'bg-stone-700 text-white border-stone-700 shadow-md shadow-stone-200 transform scale-105'
+                            : 'bg-white text-stone-600 border-stone-200 hover:border-orange-200 hover:bg-orange-50'
+                        }`}
+                        >
+                        {tagLabel}
+                        </button>
+                    )
+                  })}
                 </div>
               </div>
 
               {/* Diary Input */}
               <div className="space-y-4">
                 <label className="text-xs font-bold text-stone-400 uppercase tracking-wider flex items-center gap-2 mb-1">
-                   <PenLine size={14} className="text-orange-400" /> Diary Note
+                   <PenLine size={14} className="text-orange-400" /> {t('labelDiary')}
                 </label>
                 <textarea
                   value={diaryText}
                   onChange={(e) => setDiaryText(e.target.value)}
-                  placeholder="今の気持ちや出来事を書き留めましょう（任意）"
+                  placeholder={t('placeholderDiary')}
                   className="w-full bg-stone-50 border border-stone-200 text-stone-700 placeholder-stone-400 p-5 rounded-xl min-h-[120px] outline-none resize-none text-sm focus:bg-white focus:border-orange-300 focus:ring-4 focus:ring-orange-50 transition-all leading-relaxed"
                   disabled={isAnalyzing}
                 />
@@ -378,7 +434,7 @@ const App: React.FC = () => {
                    onClick={handleReset}
                    disabled={isAnalyzing}
                    className="px-6 py-4 rounded-xl font-bold text-sm text-stone-500 bg-stone-100 hover:bg-stone-200 hover:text-stone-700 transition-colors flex items-center gap-2 disabled:opacity-50"
-                   title="入力をリセット"
+                   title="Reset"
                  >
                    <RotateCcw size={16} />
                  </button>
@@ -395,12 +451,12 @@ const App: React.FC = () => {
                   {isAnalyzing ? (
                     <>
                       <Loader2 size={18} className="animate-spin" />
-                      <span>分析中...</span>
+                      <span>{t('analyzing')}</span>
                     </>
                   ) : (
                     <>
                       <Sparkles size={18} className="text-white" />
-                      <span>思い出を保存</span>
+                      <span>{t('btnSave')}</span>
                     </>
                   )}
                 </button>
@@ -426,7 +482,7 @@ const App: React.FC = () => {
                 <History className="text-stone-400" size={18} />
             </div>
             <h3 className="text-lg font-bold text-stone-700">
-              My Timeline
+              {t('timeline')}
             </h3>
           </div>
           <div className="flex bg-stone-200/50 p-1.5 rounded-xl">
@@ -454,8 +510,8 @@ const App: React.FC = () => {
               <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-stone-100">
                 <Music className="text-stone-300 w-8 h-8" />
               </div>
-              <p className="text-stone-600 font-medium">No memories yet</p>
-              <p className="text-stone-400 text-xs mt-1">最初の1曲を記録してみましょう</p>
+              <p className="text-stone-600 font-medium">{t('emptyTitle')}</p>
+              <p className="text-stone-400 text-xs mt-1">{t('emptyDesc')}</p>
             </div>
           ) : (
             <>
@@ -463,7 +519,7 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {memories.map((memory) => (
                     <div key={memory.id} className="h-full">
-                      <MemoryCard memory={memory} onFeedback={handleFeedback} onDelete={deleteMemory} />
+                      <MemoryCard memory={memory} language={language} onFeedback={handleFeedback} onDelete={deleteMemory} />
                     </div>
                   ))}
                 </div>
@@ -475,7 +531,7 @@ const App: React.FC = () => {
                       <ChevronLeft size={20} />
                     </button>
                     <h2 className="text-xl font-bold text-stone-700 tracking-wide">
-                      {currentDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}
+                      {currentDate.toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US', { year: 'numeric', month: 'long' })}
                     </h2>
                     <button onClick={() => changeMonth(1)} className="p-2 hover:bg-stone-50 rounded-full transition-colors text-stone-500">
                       <ChevronRight size={20} />
@@ -484,7 +540,10 @@ const App: React.FC = () => {
                   
                   {/* Calendar Grid Header */}
                   <div className="grid grid-cols-7 border-b border-stone-100 bg-stone-50/50">
-                    {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, i) => (
+                    {(language === 'ja' 
+                        ? ['日', '月', '火', '水', '木', '金', '土'] 
+                        : ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+                     ).map((day, i) => (
                       <div key={day} className={`py-4 text-center text-[10px] font-bold tracking-widest ${i === 0 ? 'text-rose-400' : i === 6 ? 'text-sky-400' : 'text-stone-400'}`}>
                         {day}
                       </div>
